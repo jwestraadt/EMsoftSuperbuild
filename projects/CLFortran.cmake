@@ -28,14 +28,37 @@ set_property(DIRECTORY PROPERTY EP_BASE ${EMsoft_SDK}/superbuild)
 
 if(WIN32)
   set(MIN_CUDA_VERSION "10.0")
-  set(NVIDIA_CUDA_DEV_VERSION ${MIN_CUDA_VERSION} CACHE STRING "CUDA developer version, to use")
-  if(${NVIDIA_CUDA_DEV_VERSION} LESS ${MIN_CUDA_VERSION})
-    message(FATAL_ERROR "NVIDIA CUDA version must be at least ${MIN_CUDA_VERSION} (got ${NVIDIA_CUDA_DEV_VERSION})")
-  endif()
   if("${NVIDIA_CUDA_DIR}" STREQUAL "")
     set(NVIDIA_CUDA_DIR "C:/Program Files/NVIDIA GPU Computing Toolkit")
     message(STATUS "NVIDIA CUDA Install: Using default location of ${NVIDIA_CUDA_DIR}")
   endif()
+
+  set(NVIDIA_CUDA_DEV_VERSION "" CACHE STRING "CUDA developer version to use; leave empty to auto-detect the newest installed version")
+  if("${NVIDIA_CUDA_DEV_VERSION}" STREQUAL "")
+    file(GLOB _cuda_install_dirs LIST_DIRECTORIES true "${NVIDIA_CUDA_DIR}/CUDA/v*")
+    set(_latest_cuda_version "")
+    foreach(_cuda_install_dir ${_cuda_install_dirs})
+      get_filename_component(_cuda_dir_name "${_cuda_install_dir}" NAME)
+      string(REGEX REPLACE "^v" "" _cuda_version "${_cuda_dir_name}")
+      if(NOT _cuda_version VERSION_LESS ${MIN_CUDA_VERSION})
+        if("${_latest_cuda_version}" STREQUAL "" OR _cuda_version VERSION_GREATER _latest_cuda_version)
+          set(_latest_cuda_version "${_cuda_version}")
+        endif()
+      endif()
+    endforeach()
+
+    if(NOT "${_latest_cuda_version}" STREQUAL "")
+      set(NVIDIA_CUDA_DEV_VERSION "${_latest_cuda_version}" CACHE STRING "CUDA developer version to use; leave empty to auto-detect the newest installed version" FORCE)
+      message(STATUS "NVIDIA CUDA Install: Auto-detected version ${NVIDIA_CUDA_DEV_VERSION}")
+    else()
+      message(FATAL_ERROR "No NVIDIA CUDA toolkit ${MIN_CUDA_VERSION} or newer was detected under ${NVIDIA_CUDA_DIR}.")
+    endif()
+  endif()
+
+  if("${NVIDIA_CUDA_DEV_VERSION}" VERSION_LESS "${MIN_CUDA_VERSION}")
+    message(FATAL_ERROR "NVIDIA CUDA version must be at least ${MIN_CUDA_VERSION} (got ${NVIDIA_CUDA_DEV_VERSION})")
+  endif()
+
   if(NOT EXISTS "${NVIDIA_CUDA_DIR}/CUDA/v${NVIDIA_CUDA_DEV_VERSION}")
     message(STATUS "NVIDIA GPU Computing Toolkit is NOT in selected location.")
     message(STATUS "Please set the NVIDIA_CUDA_DIR CMake variable to point to the top level installation of the NVIDIA GPU Computing Toolkit installation")
@@ -84,6 +107,7 @@ ExternalProject_Add(${extProjectName}
     -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
     -DCMAKE_OSX_DEPLOYMENT_TARGET=${OSX_DEPLOYMENT_TARGET}
     -DCMAKE_OSX_SYSROOT=${OSX_SDK}
+    -DCMAKE_Fortran_COMPILER:FILEPATH=${CMAKE_Fortran_COMPILER}
     -DCMAKE_Fortran_FLAGS:STRING=${CMAKE_Fortran_FLAGS}
     -DOpenCL_INCLUDE_DIR:PATH=${OpenCL_INCLUDE_DIR}
     -DOpenCL_LIBRARY:FILEPATH=${OpenCL_LIBRARY}

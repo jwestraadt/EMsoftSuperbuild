@@ -108,31 +108,44 @@ if(APPLE)
   endif()
   set(MKL_DIR ${MKL_INSTALL_LOCATION}/mkl)
 elseif(WIN32) #--------------------------------------------------------------------------------------------------
-  # The ONLY configuration that is supported on Windows is Intel Fortran. When ifort
-  # is installed MKL is also installed with it so there is no need to actuall7 install
-  # MKL at this time. If EMsoft ever supports GFortran on Windows then this will
-  # need to be revisited.
-  get_filename_component(IFORT_COMPILER_ROOT_DIR ${CMAKE_Fortran_COMPILER} DIRECTORY)
-  get_filename_component(IFORT_COMPILER_ROOT_DIR ${IFORT_COMPILER_ROOT_DIR} DIRECTORY)
-  get_filename_component(IFORT_COMPILER_ROOT_DIR ${IFORT_COMPILER_ROOT_DIR} DIRECTORY)
+  # The supported Windows configuration uses Intel Fortran and oneMKL. Prefer the
+  # oneAPI environment that setvars.bat configures, then fall back to paths inferred
+  # from the compiler location for both classic oneAPI layouts and newer unified ones.
+  set(_mkl_candidates)
 
-  set(MKL_DIR "${IFORT_COMPILER_ROOT_DIR}/mkl")
-
-  # recent (as of spring 2021) ifort changes mean that MKL can be installed in a different location in bundled w/ 'oneAPI'
-  # w/ oneAPI the ifort root dir is e.g. C:/Program Files (x86)/Intel/oneAPI/compiler/2021.1.1/windows
-  # but the mkl root dir is e.g. C:/Program Files (x86)/Intel/oneAPI/mkl/2021.1.1
-  if(NOT EXISTS ${MKL_DIR} AND ${IFORT_COMPILER_ROOT_DIR} MATCHES ".+[/\]Intel[/\]oneAPI[/\]compiler[/\].+[/\]windows")
-    get_filename_component(ONE_API_ROOT_DIR ${IFORT_COMPILER_ROOT_DIR} DIRECTORY) # e.g. C:/Program Files (x86)/Intel/oneAPI/compiler/2021.1.1
-    get_filename_component(ONE_API_VERSION  ${ONE_API_ROOT_DIR}        NAME     ) # e.g. 2021.1.1
-    get_filename_component(ONE_API_ROOT_DIR ${ONE_API_ROOT_DIR}        DIRECTORY) # e.g. C:/Program Files (x86)/Intel/oneAPI/compiler
-    get_filename_component(ONE_API_ROOT_DIR ${ONE_API_ROOT_DIR}        DIRECTORY) # e.g. C:/Program Files (x86)/Intel/oneAPI
-    set(MKL_DIR "${ONE_API_ROOT_DIR}/mkl/${ONE_API_VERSION}")
+  if(DEFINED ENV{MKLROOT} AND NOT "$ENV{MKLROOT}" STREQUAL "")
+    list(APPEND _mkl_candidates "$ENV{MKLROOT}")
   endif()
 
-  # in either case having the value wrong makes debugging much harder down the line
-  if(NOT EXISTS ${MKL_DIR})
-    message(FATAL_ERROR "failed to determine MKL directory (tried ${MKL_DIR})")
+  if(DEFINED ENV{ONEAPI_ROOT} AND NOT "$ENV{ONEAPI_ROOT}" STREQUAL "")
+    list(APPEND _mkl_candidates "$ENV{ONEAPI_ROOT}/mkl/latest")
   endif()
+
+  get_filename_component(INTEL_FORTRAN_COMPILER_BIN_DIR ${CMAKE_Fortran_COMPILER} DIRECTORY)
+  get_filename_component(INTEL_FORTRAN_COMPILER_ROOT_DIR ${INTEL_FORTRAN_COMPILER_BIN_DIR} DIRECTORY)
+  get_filename_component(INTEL_FORTRAN_COMPILER_ROOT_DIR ${INTEL_FORTRAN_COMPILER_ROOT_DIR} DIRECTORY)
+  list(APPEND _mkl_candidates "${INTEL_FORTRAN_COMPILER_ROOT_DIR}/mkl")
+
+  if("${CMAKE_Fortran_COMPILER}" MATCHES "(.+[/\\\\]Intel[/\\\\]oneAPI)[/\\\\]compiler[/\\\\]([^/\\\\]+)")
+    set(ONE_API_ROOT_DIR "${CMAKE_MATCH_1}")
+    set(ONE_API_VERSION "${CMAKE_MATCH_2}")
+    list(APPEND _mkl_candidates "${ONE_API_ROOT_DIR}/mkl/${ONE_API_VERSION}")
+    list(APPEND _mkl_candidates "${ONE_API_ROOT_DIR}/mkl/latest")
+  endif()
+
+  foreach(_mkl_candidate ${_mkl_candidates})
+    if(EXISTS "${_mkl_candidate}")
+      set(MKL_DIR "${_mkl_candidate}")
+      break()
+    endif()
+  endforeach()
+
+  if(NOT DEFINED MKL_DIR OR NOT EXISTS "${MKL_DIR}")
+    string(REPLACE ";" ", " _mkl_candidates_text "${_mkl_candidates}")
+    message(FATAL_ERROR "failed to determine MKL directory (tried ${_mkl_candidates_text}). Run Intel oneAPI setvars.bat or set MKLROOT.")
+  endif()
+
+  file(TO_CMAKE_PATH "${MKL_DIR}" MKL_DIR)
 
 else()
 

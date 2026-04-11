@@ -45,13 +45,13 @@ else()
   endif()
 endif()
 
-if(${Fortran_COMPILER_NAME} MATCHES "gfortran.*")
+if(EMSOFT_FORTRAN_IS_GNU)
   set(BCLS_USE_MKL "OFF")
-elseif (${Fortran_COMPILER_NAME} MATCHES "ifort.*")
+elseif (EMSOFT_FORTRAN_IS_INTEL)
   set(BCLS_USE_MKL "ON")
 else()
   message(STATUS "The Fotran compiler is NOT recognized. EMsoft may not support it.")
-  message(FATAL_ERROR "Current Fotran Compiler is ${CMAKE_Fortran_COMPILER}")
+  message(FATAL_ERROR "Current Fotran Compiler is ${CMAKE_Fortran_COMPILER} (ID: ${CMAKE_Fortran_COMPILER_ID})")
 endif()
 
 
@@ -74,6 +74,7 @@ ExternalProject_Add(${extProjectName}
     -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
     -DCMAKE_OSX_DEPLOYMENT_TARGET=${OSX_DEPLOYMENT_TARGET}
     -DCMAKE_OSX_SYSROOT=${OSX_SDK}
+    -DCMAKE_Fortran_COMPILER:FILEPATH=${CMAKE_Fortran_COMPILER}
     -DOpenCL_INCLUDE_DIR:PATH=${OpenCL_INCLUDE_DIR}
     -DOpenCL_LIBRARY:FILEPATH=${OpenCL_LIBRARY}
     -DBCLS_USE_MKL:BOOL=${BCLS_USE_MKL}

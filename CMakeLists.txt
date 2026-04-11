@@ -17,7 +17,7 @@ if(WIN32)
   message(STATUS "**************************************************************************")
   message(STATUS "* Platform: Windows")
   message(STATUS "* ONLY NVidia GPUs are supported on Windows platforms. Please ensure that")
-  message(STATUS "* the NVidia GPU computing toolkit version 10.0 is installed on your")
+  message(STATUS "* the NVidia GPU computing toolkit version 10.0 or newer is installed on your")
   message(STATUS "* computer before trying to compile EMsoft.")
   message(STATUS "**************************************************************************")
 
@@ -176,24 +176,34 @@ FILE(APPEND ${EMsoft_SDK_FILE} "set(CMAKE_EXPORT_COMPILE_COMMANDS ON)\n")
 #------------------------------------------------------------------------------
 # Get the name of the Fortran compiler for easier decisions
 get_filename_component (Fortran_COMPILER_NAME ${CMAKE_Fortran_COMPILER} NAME)
+string(TOLOWER "${Fortran_COMPILER_NAME}" Fortran_COMPILER_NAME_LOWER)
+
+set(EMSOFT_FORTRAN_IS_GNU OFF)
+set(EMSOFT_FORTRAN_IS_INTEL OFF)
+
+if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU" OR Fortran_COMPILER_NAME_LOWER MATCHES "^gfortran")
+  set(EMSOFT_FORTRAN_IS_GNU ON)
+elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel|IntelLLVM" OR Fortran_COMPILER_NAME_LOWER MATCHES "^(ifort|ifx)")
+  set(EMSOFT_FORTRAN_IS_INTEL ON)
+endif()
 
 #------------------------------------------------------------------------------
 # On Windows we are going to use Intel MKL with the FFTW interface so we do not
 # need to install FFTW3
-if(${Fortran_COMPILER_NAME} MATCHES "gfortran.*")
+if(EMSOFT_FORTRAN_IS_GNU)
   include(FFTW)
-elseif (${Fortran_COMPILER_NAME} MATCHES "ifort.*")
+elseif (EMSOFT_FORTRAN_IS_INTEL)
   set(OSX_DEPLOYMENT_TARGET "10.13")
   include(MKL)
 else()
   message(STATUS "The Fortran compiler is NOT recognized. EMsoft may not support it.")
-  message(FATAL_ERROR "Current Fortran Compiler is ${CMAKE_Fortran_COMPILER}")
+  message(FATAL_ERROR "Current Fortran Compiler is ${CMAKE_Fortran_COMPILER} (ID: ${CMAKE_Fortran_COMPILER_ID})")
 endif()
 
 include(nlopt)
 include(JsonFortran)
-include(Bcls)
 include(CLFortran)
+include(Bcls)
 include(HDF5)
 # include(HDF5pl)
 

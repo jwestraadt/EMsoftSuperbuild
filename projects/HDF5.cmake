@@ -18,6 +18,17 @@ endif()
 message(STATUS "Building: ${extProjectName} ${HDF5_VERSION}: -DBUILD_HDF5=${BUILD_HDF5}" )
 
 set(HDF5_BUILD_SHARED_LIBS ON)
+set(HDF5_BUILD_STATIC_LIBS ON)
+set(HDF5_INSTALL_MOD_FORTRAN "SHARED")
+
+# HDF5 1.12.2 on Windows reaches the high-level Fortran shared-library link step
+# and fails under IntelLLVM/ifx. Build static HDF5 in that configuration.
+if(WIN32 AND CMAKE_Fortran_COMPILER_ID STREQUAL "IntelLLVM")
+  set(HDF5_BUILD_SHARED_LIBS OFF)
+  set(HDF5_INSTALL_MOD_FORTRAN "STATIC")
+  message(STATUS "Configuring HDF5 for static-only build on Windows with ifx/IntelLLVM")
+endif()
+
 set(HDF5_INSTALL "${EMsoft_SDK}/${extProjectName}-${HDF5_VERSION}-${CMAKE_BUILD_TYPE}")
 
 if( CMAKE_BUILD_TYPE MATCHES Debug )
@@ -59,8 +70,10 @@ ExternalProject_Add(${extProjectName}
 
   CMAKE_ARGS
     -DBUILD_SHARED_LIBS:BOOL=${HDF5_BUILD_SHARED_LIBS}
+    -DBUILD_STATIC_LIBS:BOOL=${HDF5_BUILD_STATIC_LIBS}
     -DCMAKE_C_COMPILER:FILEPATH=${CMAKE_C_COMPILER}
     -DCMAKE_CXX_COMPILER:FILEPATH=${CMAKE_CXX_COMPILER}
+    -DCMAKE_Fortran_COMPILER:FILEPATH=${CMAKE_Fortran_COMPILER}
     -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
     -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
     ${C_CXX_FLAGS}
@@ -74,6 +87,7 @@ ExternalProject_Add(${extProjectName}
     -DHDF5_BUILD_HL_LIB=ON
     -DHDF_PACKAGE_NAMESPACE=hdf5::
     -DHDF5_BUILD_FORTRAN=ON
+    -DHDF5_INSTALL_MOD_FORTRAN:STRING=${HDF5_INSTALL_MOD_FORTRAN}
     -DHDF5_BUILD_EXAMPLES=OFF
     -DBUILD_TESTING=OFF
 
